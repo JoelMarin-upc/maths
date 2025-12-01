@@ -49,6 +49,10 @@ static Matrix3d matrixScalarProduct(Matrix3d& m, double scalar) {
     return scalar * m;
 }
 
+static Matrix3d matrixProduct(Matrix3d& m1, Matrix3d& m2) {
+    return m1 * m2;
+}
+
 static Matrix3d matrixSum(Matrix3d& m1, Matrix3d& m2) {
     return m1 + m2;
 }
