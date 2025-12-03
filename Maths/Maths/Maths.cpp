@@ -7,87 +7,105 @@
 using namespace std;
 using namespace Eigen;
 
+enum MatrixType {
+    COMPATIBLE_DETERMINATE,
+    COMPATIBLE_INDETERMINATE,
+    INCOMPATIBLE
+};
+
 const double EPSILON = 1e-12;
 
 static Matrix3d eulerAxisAngleToRotMat(Vector4d& eulerAxisAngle) {
-
+    double angle = eulerAxisAngle.w();
+    Vector3d axis(eulerAxisAngle.x(), eulerAxisAngle.y(), eulerAxisAngle.z());
+    Matrix3d I = Matrix3d::Identity();
+    Matrix3d crossMatrix = vectorToCrossMatrix(axis);
+    
+    Matrix3d a = cos(angle) * I;
+    Matrix3d b = (axis * axis.transpose()) * (1 - cos(angle));
+    Matrix3d c = sin(angle) * crossMatrix;
+    return a + b + c;
 }
 
 static Matrix3d eulerAnglesToRotMat(Vector3d& eulerAngles) {
-
+    double yaw = eulerAngles.x();
+    double pitch = eulerAngles.y();
+    double roll = eulerAngles.z();
+    Matrix3d rotMat;
+    rotMat <<
+        cos(pitch) * cos(yaw), cos(yaw) * sin(pitch) * sin(roll) - cos(roll) * sin(yaw), cos(roll) * cos(yaw) * sin(pitch) + sin(yaw) * sin(roll),
+        cos(pitch) * sin(yaw), sin(yaw) * sin(pitch) * sin(roll) + cos(roll) * cos(yaw), cos(roll) * sin(yaw) * sin(pitch) - cos(yaw) * sin(roll),
+        -sin(pitch), cos(pitch) * sin(roll), cos(pitch) * cos(roll);
+    return rotMat;
 }
 
 static Vector3d rotMatToEulerAngles(Matrix3d& rotMat) {
-
+    double pitch = asin(-rotMat(2, 0));
+    double roll = atan2(rotMat(2, 1) / cos(pitch), rotMat(2, 2) / cos(pitch));
+    double yaw = atan2(rotMat(1, 0) / cos(pitch), rotMat(0, 0) / cos(pitch));
+    return Vector3d(yaw, pitch, roll);
 }
 
-static Vector2d rotMatToEulerAxisAngle(Matrix3d& rotMat) {
-
+static Vector4d rotMatToEulerAxisAngle(Matrix3d& rotMat) {
+    double angle = acos((rotMat.trace() - 1) / 2);
+    Matrix3d crossMatrix = (rotMat - rotMat.transpose()) / (2 * sin(angle));
+    return Vector4d(crossMatrix(2, 1), crossMatrix(0, 2), crossMatrix(1, 0), angle);
 }
 
 static Quaterniond eulerAxisAngleToQuaternion(Vector4d& eulerAxisAngle) {
-    
+    double realPart = cos(eulerAxisAngle.w() / 2);
+    Vector3d axis(eulerAxisAngle.x(), eulerAxisAngle.y(), eulerAxisAngle.z());
+    Vector3d imaginaryPart = sin(eulerAxisAngle.w() / 2) * axis;
+    return Quaterniond(realPart, imaginaryPart.x(), imaginaryPart.y(), imaginaryPart.z());
 }
 
 static Vector4d quaternionToEulerAxisAngle(Quaterniond& quaternion) {
-
+    double angle = 2 * acos(quaternion.w());
+    Vector3d quatVector(quaternion.x(), quaternion.y(), quaternion.z());
+    Vector3d axis = (1 / sin(angle / 2)) * quatVector;
+    return Vector4d(axis.x(), axis.y(), axis.z(), angle);
 }
 
 static Vector3d eulerAxisAngleToRotVec(Vector4d& eulerAxisAngle) {
-
+    Vector3d axis(eulerAxisAngle.x(), eulerAxisAngle.y(), eulerAxisAngle.z());
+    return eulerAxisAngle.w() * axis;
 }
 
 static Vector4d rotVecToEulerAxisAngle(Vector3d& rotVec) {
+    double angle = rotVec.norm();
+    Vector3d axis = rotVec / rotVec.norm();
+    return Vector4d(axis.x(), axis.y(), axis.z(), angle);
+}
 
+static Vector3d quaternionRotation(Vector3d& rotationAxis, Quaterniond& rotation) {
+    Quaterniond v(0, rotationAxis.x(), rotationAxis.y(), rotationAxis.z());
+    Quaterniond conj = rotation.conjugate();
+    Quaterniond res1 = quaternionProduct(rotation, v);
+    Quaterniond res2 = quaternionProduct(res1, conj);
+    return Vector3d(res2.x(), res2.y(), res2.z());
 }
 
 static Quaterniond quaternionProduct(Quaterniond& q1, Quaterniond& q2) {
-    return q1 * q2;
+    //return q1 * q2;
+    Matrix4d m1;
+    m1 << 
+        q1.w(), -q1.x(), -q1.y(), -q1.z(),
+        q1.x(), q1.w(), -q1.z(), q1.y(),
+        q1.y(), q1.z(), q1.w(), -q1.x(),
+        q1.z(), -q1.y(), q1.x(), q1.w();
+    MatrixXd m2(4, 1);
+    m2 << q2.w(), q2.x(), q2.y(), q2.z();
+    MatrixXd res = m1 * m2;
+    return Quaterniond(res(0, 0), res(1, 0), res(2, 0), res(3, 0));
 }
 
-static Matrix3d matrixScalarProduct(Matrix3d& m, double scalar) {
-    return scalar * m;
-}
-
-static Matrix3d matrixProduct(Matrix3d& m1, Matrix3d& m2) {
-    return m1 * m2;
-}
-
-static Matrix3d matrixSum(Matrix3d& m1, Matrix3d& m2) {
-    return m1 + m2;
-}
-
-static Matrix3d vectorToCrossProductMatrix(Vector3d& vector) {
+static Matrix3d vectorToCrossMatrix(Vector3d& vector) {
     Matrix3d crossProductMatrix;
     crossProductMatrix <<
-        0, -vector[2], vector[1],
-        vector[2], 0, -vector[0],
-        -vector[1], vector[0], 0;
+        0, -vector(2), vector(1),
+        vector(2), 0, -vector(0),
+        -vector(1), vector(0), 0;
     return crossProductMatrix;
-}
-
-static Matrix3d transpose(Matrix3d& matrix) {
-    return matrix.transpose();
-}
-
-static Matrix3d inverse(Matrix3d& matrix) {
-    return matrix.inverse();
-}
-
-static Vector3d normalize(Vector3d& vector) {
-    return vector / vector.norm();
-}
-
-static double norm(Vector3d& vector) {
-    return vector.norm();
-}
-
-static double trace(Matrix3d& matrix) {
-    return matrix.trace();
-}
-
-static double determinant(Matrix3d& matrix) {
-    return matrix.determinant();
 }
 
 static double randomDouble(double min, double max) {
@@ -163,8 +181,8 @@ static string getTime(Timer* timer) {
     else return to_string(ns) + " nanoseconds";
 }
 
-static string getType(const MatrixXd& matrix) {
-    string type = "Compatible Determinate";
+static MatrixType getType(const MatrixXd& matrix) {
+    MatrixType type = COMPATIBLE_DETERMINATE;
     int rows = matrix.rows();
     int cols = matrix.cols();
     int lastCol = cols - 1;
@@ -180,11 +198,11 @@ static string getType(const MatrixXd& matrix) {
         }
 
         if (allZero && fabs(matrix(i, lastCol)) > EPSILON) {
-            return "Incompatible";
+            return INCOMPATIBLE;
         }
 
         if (fabs(matrix(i, i)) < EPSILON && fabs(matrix(i, lastCol)) < EPSILON) {
-            type = "Compatible Indeterminate";
+            type = COMPATIBLE_INDETERMINATE;
         }
     }
 
