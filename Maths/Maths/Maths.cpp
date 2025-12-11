@@ -1,11 +1,12 @@
 #include <iostream>
 #include <vector>
 #include <Eigen/Dense>
-//#include "quaternion.h"
+#include <matplotlibcpp.h>
 #include "Timer.h"
 
 using namespace std;
 using namespace Eigen;
+namespace plt = matplotlibcpp;
 
 enum MatrixType {
     COMPATIBLE_DETERMINATE,
@@ -22,6 +23,18 @@ enum RotationType {
 };
 
 const double EPSILON = 1e-12;
+const double PI = 3.14159265359;
+
+static double randomDouble(double min, double max) {
+    double random = static_cast<double>(rand()) / RAND_MAX;
+
+    double range = max - min;
+    double scaled = random * range + min;
+
+    if (abs(scaled) < EPSILON) return 0;
+    if (rand() % 2 == 0) return scaled;
+    else return -scaled;
+}
 
 static Quaterniond QuaternionProduct(Quaterniond& q1, Quaterniond& q2) {
     //return q1 * q2;
@@ -116,15 +129,36 @@ static Vector3d QuaternionRotation(Vector3d& rotationAxis, Quaterniond& rotation
     return Vector3d(res2.x(), res2.y(), res2.z());
 }
 
-static vector<Matrix3d> PlotMatrices() {
-    // implementar
+static vector<Vector2d> PlotValues() {
+    vector<Vector2d> plottedValues;
+    for (int i = 0; i < 100; i++) {
+        double angle = 6 * PI / 100 * i;
+        Vector3d axis = Vector3d(randomDouble(-10, 10), randomDouble(-10, 10), randomDouble(-10, 10));
+        axis.normalize();
+        Vector4d eulerAxisAngle = Vector4d(axis.x(), axis.y(), axis.z(), angle);
+        Matrix3d rotationMatrix = EulerAxisAngleToRotMat(eulerAxisAngle);
+        Vector2d plottedValue = Vector2d(angle, rotationMatrix.trace());
+        plottedValues.push_back(plottedValue);
+    }
+    return plottedValues;
 }
 
-static void DrawMatrices(vector<Matrix3d> matrices) {
-    // implementar
+static void DrawValues(vector<Vector2d> plottedValues) {
+    vector<double> x;
+    vector<double> y;
+    for (int i = 0; i < plottedValues.size(); i++)
+    {
+        x.push_back(plottedValues[i].x());
+        y.push_back(plottedValues[i].y());
+    }
+    plt::plot(x, y);
+    plt::show();
+    //plt::detail::_interpreter::kill();
 }
 
 static Vector4d GetEulerAxisAngle() {
+    system("CLS");
+
     Vector4d vec;
     vec.setZero();
     cout << vec << endl;
@@ -147,6 +181,8 @@ static Vector4d GetEulerAxisAngle() {
 }
 
 static Vector3d GetEulerAngles() {
+    system("CLS");
+
     Vector3d vec;
     vec.setZero();
     cout << vec << endl;
@@ -169,6 +205,8 @@ static Vector3d GetEulerAngles() {
 }
 
 static Matrix3d GetRotationMatrix() {
+    system("CLS");
+
     Matrix3d matrix;
     matrix.setZero();
     cout << matrix << endl;
@@ -192,6 +230,8 @@ static Matrix3d GetRotationMatrix() {
 }
 
 static Vector3d GetRotationVector() {
+    system("CLS");
+
     Vector3d vec;
     vec.setZero();
     cout << vec << endl;
@@ -214,6 +254,8 @@ static Vector3d GetRotationVector() {
 }
 
 static Quaterniond GetQuaternion() {
+    system("CLS");
+
     Vector4d vec;
     vec.setZero();
     cout << vec << endl;
@@ -233,17 +275,6 @@ static Quaterniond GetQuaternion() {
     system("CLS");
 
     return Quaterniond(vec[0], vec[1], vec[2], vec[3]);
-}
-
-static double randomDouble(double min, double max) {
-    double random = static_cast<double>(rand()) / RAND_MAX;
-
-    double range = max - min;
-    double scaled = random * range + min;
-
-    if (abs(scaled) < EPSILON) return 0;
-    if (rand() % 2 == 0) return scaled;
-    else return -scaled;
 }
 
 static MatrixXd getRandomMatrix(int rows, int columns, double minVal, double maxVal) {
@@ -350,7 +381,7 @@ int main()
     cout << "[7] Euler Axis Angle -> Rotation Vector" << endl;
     cout << "[8] Rotation Vector -> Euler Axis Angle" << endl;
     cout << "[9] Quaternion Rotation" << endl;
-    cout << "[0] Plot Matrices" << endl;
+    cout << "[0] Plot Matrices (angle: 0->6pi)" << endl;
     cout << "Choose an option: ";
     string input;
     getline(cin, input);
@@ -403,8 +434,8 @@ int main()
         cout << v2 << endl;
     }
     else if (input == "0") {
-        auto m = PlotMatrices();
-        DrawMatrices(m);
+        auto vals = PlotValues();
+        DrawValues(vals);
     }
     else cout << "Not a valid option.";
 }
