@@ -29,8 +29,8 @@
     <ClInclude Include="Timer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\..\Downloads\matplotlibcpp.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="matplotlibcpp.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

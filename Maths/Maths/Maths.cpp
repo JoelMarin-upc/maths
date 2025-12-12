@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <Eigen/Dense>
-#include <matplotlibcpp.h>
+#include "matplotlibcpp.h"
 #include "Timer.h"
 
 using namespace std;
@@ -12,14 +12,6 @@ enum MatrixType {
     COMPATIBLE_DETERMINATE,
     COMPATIBLE_INDETERMINATE,
     INCOMPATIBLE
-};
-
-enum RotationType {
-    EULER_ANLGE_AXIS, // Vector4d
-    EULER_ANGLES, // Vector3d
-    ROTATION_MATRIX, // Matrix4d
-    ROTATION_VECTOR, // Vector3d
-    QUATERNION // Quaterniond
 };
 
 const double EPSILON = 1e-12;
@@ -129,6 +121,54 @@ static Vector3d QuaternionRotation(Vector3d& rotationAxis, Quaterniond& rotation
     return Vector3d(res2.x(), res2.y(), res2.z());
 }
 
+struct RotationSet {
+    Eigen::Matrix3d rotationMatrix;
+    Eigen::Vector3d eulerAngles;
+    Eigen::Vector4d eulerAxisAngle;
+    Eigen::Quaterniond quaternion;
+    Eigen::Vector3d rotationVector;
+};
+
+RotationSet ConvertRotation(
+    Eigen::Matrix3d* rotMat = nullptr,
+    Eigen::Vector3d* eulerAngles = nullptr,
+    Eigen::Vector4d* eulerAxisAngle = nullptr,
+    Eigen::Quaterniond* quat = nullptr,
+    Eigen::Vector3d* rotVec = nullptr
+) {
+    RotationSet result;
+
+    if (rotMat) {
+        result.rotationMatrix = *rotMat;
+    }
+    else if (eulerAngles) {
+        result.rotationMatrix = EulerAnglesToRotMat(*eulerAngles);
+    }
+    else if (eulerAxisAngle) {
+        result.rotationMatrix = EulerAxisAngleToRotMat(*eulerAxisAngle);
+    }
+    else if (quat) {
+        result.rotationMatrix = quat->toRotationMatrix();
+    }
+    else if (rotVec) {
+        Vector4d axisAnlge = RotVecToEulerAxisAngle(*rotVec);
+        result.rotationMatrix = EulerAxisAngleToRotMat(axisAnlge);
+    }
+    else {
+        throw std::runtime_error("No rotation input provided");
+    }
+
+    result.eulerAngles = RotMatToEulerAngles(result.rotationMatrix);
+
+    result.eulerAxisAngle = RotMatToEulerAxisAngle(result.rotationMatrix);
+
+    result.quaternion = EulerAxisAngleToQuaternion(result.eulerAxisAngle);
+
+    result.rotationVector = EulerAxisAngleToRotVec(result.eulerAxisAngle);
+
+    return result;
+}
+
 static vector<Vector2d> PlotValues() {
     vector<Vector2d> plottedValues;
     for (int i = 0; i < 100; i++) {
@@ -156,6 +196,14 @@ static void DrawValues(vector<Vector2d> plottedValues) {
     //plt::detail::_interpreter::kill();
 }
 
+static bool IsRotationMatrix(Matrix3d matrix) {
+    bool isRotationMatrix = false;
+
+    isRotationMatrix = matrix.determinant() - 1 < EPSILON;
+    isRotationMatrix = ((matrix.transpose() - matrix.inverse()).array().abs() < EPSILON).all();
+    return isRotationMatrix;
+}
+
 static Vector4d GetEulerAxisAngle() {
     system("CLS");
 
@@ -176,6 +224,11 @@ static Vector4d GetEulerAxisAngle() {
     }
 
     system("CLS");
+
+    Vector3d normalizedAxis = Vector3d(vec.x(), vec.y(), vec.z());
+    normalizedAxis.normalize();
+
+    vec = Vector4d(normalizedAxis.x(), normalizedAxis.y(), normalizedAxis.z(), vec.w());
 
     return vec;
 }
@@ -225,6 +278,9 @@ static Matrix3d GetRotationMatrix() {
     }
 
     system("CLS");
+
+    Eigen::JacobiSVD<Eigen::Matrix3d> svd(matrix, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    matrix = svd.matrixU() * svd.matrixV().transpose();
 
     return matrix;
 }
@@ -369,7 +425,6 @@ static MatrixType getType(const MatrixXd& matrix) {
 
 int main()
 {
-    Timer timer;
     srand(static_cast<unsigned int>(time(0)));
 
     cout << "[1] Euler Axis Angle -> Rotation Matrix" << endl;
@@ -381,7 +436,8 @@ int main()
     cout << "[7] Euler Axis Angle -> Rotation Vector" << endl;
     cout << "[8] Rotation Vector -> Euler Axis Angle" << endl;
     cout << "[9] Quaternion Rotation" << endl;
-    cout << "[0] Plot Matrices (angle: 0->6pi)" << endl;
+    cout << "[10] Plot Matrices (angle: 0->6pi)" << endl;
+    cout << "[11] Convert rotation" << endl;
     cout << "Choose an option: ";
     string input;
     getline(cin, input);
@@ -391,11 +447,13 @@ int main()
         auto v = GetEulerAxisAngle();
         auto m = EulerAxisAngleToRotMat(v);
         cout << m << endl;
+        if (IsRotationMatrix(m)) cout << "The matrix is a rotation: det(A) = 1, A(transposed) = A(inverse)" << endl;
     }
     else if (input == "2") {
         auto v = GetEulerAngles();
         auto m = EulerAnglesToRotMat(v);
         cout << m << endl;
+        if (IsRotationMatrix(m)) cout << "The matrix is a rotation: det(A) = 1, A(transposed) = A(inverse)" << endl;
     }
     else if (input == "3") {
         auto m = GetRotationMatrix();
@@ -433,9 +491,50 @@ int main()
         auto v2 = QuaternionRotation(v1, q);
         cout << v2 << endl;
     }
-    else if (input == "0") {
+    else if (input == "10") {
         auto vals = PlotValues();
         DrawValues(vals);
+    }
+    else if (input == "11") {
+        cout << "[1] Rotation matrix" << endl;
+        cout << "[2] Euler Angles" << endl;
+        cout << "[3] Euler Axis Angle" << endl;
+        cout << "[4] Quaternion" << endl;
+        cout << "[5] Rotation Vector" << endl;
+        cout << "Chose an input option: ";
+        string input;
+        getline(cin, input);
+        cout << endl << endl;
+
+        RotationSet allRotations;
+
+        if (input == "1") {
+            auto m = GetRotationMatrix();
+            allRotations = ConvertRotation(&m);
+        }
+        else if (input == "2") {
+            auto v = GetEulerAngles();
+            allRotations = ConvertRotation(nullptr, &v);
+        }
+        else if (input == "3") {
+            auto v = GetEulerAxisAngle();
+            allRotations = ConvertRotation(nullptr, nullptr, &v);
+        }
+        else if (input == "4") {
+            auto q = GetQuaternion();
+            allRotations = ConvertRotation(nullptr, nullptr, nullptr, &q);
+        }
+        else if (input == "5") {
+            auto v = GetRotationVector();
+            allRotations = ConvertRotation(nullptr, nullptr, nullptr, nullptr, &v);
+        }
+        else cout << "Not a valid option.";
+
+        std::cout << "Rotation Matrix:\n" << allRotations.rotationMatrix << "\n\n";
+        std::cout << "Euler Angles:\n" << allRotations.eulerAngles << "\n\n";
+        std::cout << "Euler Axis Angle:\n" << allRotations.eulerAxisAngle << "\n\n";
+        std::cout << "Quaternion:\n" << allRotations.quaternion.coeffs() << "\n\n";
+        std::cout << "Rotation Vector:\n" << allRotations.rotationVector << "\n\n";
     }
     else cout << "Not a valid option.";
 }
